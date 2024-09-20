@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 project(nav2_constrained_smoother)
 
-set(CMAKE_BUILD_TYPE Release) # significant Ceres optimization speedup
+set(CMAKE_BUILD_TYPE Debug) # significant Ceres optimization speedup
 
 find_package(ament_cmake REQUIRED)
 find_package(nav2_core REQUIRED)

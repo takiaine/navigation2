@@ -163,6 +163,7 @@ StaticLayer::getParameters()
 
   // Enforce bounds
   lethal_threshold_ = std::max(std::min(temp_lethal_threshold, 100), 0);
+  std::cout << "Lethal threshold " << (unsigned)lethal_threshold_ << std::endl;
   map_received_ = false;
   map_received_in_update_bounds_ = false;
 
@@ -232,8 +233,10 @@ StaticLayer::processMap(const nav_msgs::msg::OccupancyGrid & new_map)
     for (unsigned int j = 0; j < size_x; ++j) {
       unsigned char value = new_map.data[index];
       costmap_[index] = interpretValue(value);
-      ++index;
+        std::cout << " " << (unsigned)value << ":" << (unsigned)costmap_[index];
+        ++index;
     }
+    std::cout << std::endl;;
   }
 
   map_frame_ = new_map.header.frame_id;
@@ -262,6 +265,7 @@ StaticLayer::matchSize()
 unsigned char
 StaticLayer::interpretValue(unsigned char value)
 {
+    std::cout << "lethal_threshold_ " << (unsigned)lethal_threshold_ << std::endl;
   // check if the static value is above the unknown or lethal thresholds
   if (track_unknown_space_ && value == unknown_cost_value_) {
     return NO_INFORMATION;
@@ -270,20 +274,18 @@ StaticLayer::interpretValue(unsigned char value)
   } else if (value >= lethal_threshold_) {
     return LETHAL_OBSTACLE;
   } else if (trinary_costmap_) {
+    std::cout << "trinary";
     return FREE_SPACE;
   }
 
-  double scale = static_cast<double>(value) / lethal_threshold_;
-  return scale * LETHAL_OBSTACLE;
+  double scale = static_cast<double>(value)/100.0*254.0;
+  std::cout << "scale " << scale << std::endl;
+  return static_cast<unsigned char>(scale);
 }
 
 void
 StaticLayer::incomingMap(const nav_msgs::msg::OccupancyGrid::SharedPtr new_map)
 {
-  if (!nav2_util::validateMsg(*new_map)) {
-    RCLCPP_ERROR(logger_, "Received map message is malformed. Rejecting.");
-    return;
-  }
   if (!map_received_) {
     processMap(*new_map);
     map_received_ = true;
@@ -318,7 +320,6 @@ StaticLayer::incomingUpdate(map_msgs::msg::OccupancyGridUpdate::ConstSharedPtr u
       "StaticLayer: Map update ignored. Current map is in frame %s "
       "but update was in frame %s",
       map_frame_.c_str(), update->header.frame_id.c_str());
-    return;
   }
 
   unsigned int di = 0;
@@ -336,7 +337,7 @@ StaticLayer::incomingUpdate(map_msgs::msg::OccupancyGridUpdate::ConstSharedPtr u
 
 void
 StaticLayer::updateBounds(
-  double robot_x, double robot_y, double robot_yaw, double * min_x,
+  double /*robot_x*/, double /*robot_y*/, double /*robot_yaw*/, double * min_x,
   double * min_y,
   double * max_x,
   double * max_y)
@@ -374,24 +375,6 @@ StaticLayer::updateBounds(
   *max_y = std::max(wy, *max_y);
 
   has_updated_data_ = false;
-
-  updateFootprint(robot_x, robot_y, robot_yaw, min_x, min_y, max_x, max_y);
-}
-
-void
-StaticLayer::updateFootprint(
-  double robot_x, double robot_y, double robot_yaw,
-  double * min_x, double * min_y,
-  double * max_x,
-  double * max_y)
-{
-  if (!footprint_clearing_enabled_) {return;}
-
-  transformFootprint(robot_x, robot_y, robot_yaw, getFootprint(), transformed_footprint_);
-
-  for (unsigned int i = 0; i < transformed_footprint_.size(); i++) {
-    touch(transformed_footprint_[i].x, transformed_footprint_[i].y, min_x, min_y, max_x, max_y);
-  }
 }
 
 void
@@ -411,10 +394,6 @@ StaticLayer::updateCosts(
       count = 0;
     }
     return;
-  }
-
-  if (footprint_clearing_enabled_) {
-    setConvexPolygonCost(transformed_footprint_, nav2_costmap_2d::FREE_SPACE);
   }
 
   if (!layered_costmap_->isRolling()) {
@@ -498,10 +477,6 @@ StaticLayer::dynamicParametersCallback(
         height_ = size_y_;
         has_updated_data_ = true;
         current_ = false;
-      }
-    } else if (param_type == ParameterType::PARAMETER_BOOL) {
-      if (param_name == name_ + "." + "footprint_clearing_enabled") {
-        footprint_clearing_enabled_ = parameter.as_bool();
       }
     }
   }

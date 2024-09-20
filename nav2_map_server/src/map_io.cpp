@@ -39,7 +39,6 @@
 #include <vector>
 #include <fstream>
 #include <stdexcept>
-#include <cstdlib>
 
 #include "Magick++.h"
 #include "nav2_util/geometry_utils.hpp"
@@ -116,33 +115,9 @@ T yaml_get_value(const YAML::Node & node, const std::string & key)
   }
 }
 
-std::string get_home_dir()
-{
-  if (const char * home_dir = std::getenv("HOME")) {
-    return std::string{home_dir};
-  }
-  return std::string{};
-}
-
-std::string expand_user_home_dir_if_needed(
-  std::string yaml_filename,
-  std::string home_variable_value)
-{
-  if (yaml_filename.size() < 2 || !(yaml_filename[0] == '~' && yaml_filename[1] == '/')) {
-    return yaml_filename;
-  }
-  if (home_variable_value.empty()) {
-    std::cout << "[INFO] [map_io]: Map yaml file name starts with '~/' but no HOME variable set. \n"
-              << "[INFO] [map_io] User home dir will be not expanded \n";
-    return yaml_filename;
-  }
-  const std::string prefix{home_variable_value};
-  return yaml_filename.replace(0, 1, prefix);
-}
-
 LoadParameters loadMapYaml(const std::string & yaml_filename)
 {
-  YAML::Node doc = YAML::LoadFile(expand_user_home_dir_if_needed(yaml_filename, get_home_dir()));
+  YAML::Node doc = YAML::LoadFile(yaml_filename);
   LoadParameters load_parameters;
 
   auto image_file_name = yaml_get_value<std::string>(doc, "image");
@@ -267,13 +242,15 @@ void loadMapFromFile(
           }
           break;
         case MapMode::Raw: {
-            double occ_percent = std::round(shade * 255);
+            double occ_percent = std::round(shade * 100);
             if (nav2_util::OCC_GRID_FREE <= occ_percent &&
               occ_percent <= nav2_util::OCC_GRID_OCCUPIED)
             {
               map_cell = static_cast<int8_t>(occ_percent);
+              //std::cout << "shade " << shade << " occ_percent " << occ_percent << " map_cell " << (unsigned)map_cell << std::endl; 
             } else {
               map_cell = nav2_util::OCC_GRID_UNKNOWN;
+              //std::cout << "shade " << shade << " occ_percent " << occ_percent << " occ_unknown " << std::endl;
             }
             break;
           }
@@ -320,6 +297,7 @@ LOAD_MAP_STATUS loadMapFromYaml(
       " for reason: " << e.what() << std::endl;
     return INVALID_MAP_METADATA;
   }
+
   try {
     loadMapFromFile(load_parameters, map);
   } catch (std::exception & e) {
